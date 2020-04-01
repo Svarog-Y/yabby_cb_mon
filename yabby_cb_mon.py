@@ -10,6 +10,7 @@ import pandas as pd
 import datetime as dt
 from time import sleep
 from sys import exit
+from pathlib import Path
 from random import choice
 from string import digits, ascii_letters
 
@@ -19,12 +20,15 @@ from smtplib import SMTP_SSL
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# root directory
+root = Path(__file__).parent
+
 # dates and times
 today = dt.date.today()
 start_date = f"{(today - dt.timedelta(days=today.weekday()+7)).strftime('%m-%d-%y')} 00:00"
 end_date = f"{(today - dt.timedelta(days=today.weekday()+1)).strftime('%m-%d-%y')} 23:59"
 # api basics
-cert_path = r'certificates/mccyabby.pem' # need absolute pathing
+cert_path = root/'certificates'/'mccyabby.pem'
 main_url = "https://admin.yabbycasino.com/YABBYECVSUGMOQMOIPQO/RTGWebAPI/"
 
 def get(call, params, description):
@@ -338,4 +342,4 @@ for index, row in df1.iterrows(): # iterate through dataframe rows [depositors]
             df1.at[index, 'processed'] = True
             send_email(1, row['first_name'], row['email'])
 
-df1.to_csv('data.csv')
+df1.to_csv(root/'data.csv')

@@ -1,5 +1,3 @@
 certificates
 data.csv
-testaffstats.py
-testsameline.py
-def send_email(status, firstname, email).py
+tests
