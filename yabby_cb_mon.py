@@ -8,27 +8,26 @@ min_reward = 1
 import requests
 import pandas as pd
 import datetime as dt
-from time import sleep
 from sys import exit
 from pathlib import Path
 from random import choice
 from string import digits, ascii_letters
 
-#email imports
+# email imports
 from ssl import create_default_context
 from smtplib import SMTP_SSL
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 # root directory
-root = Path(__file__).parent
+root = Path.cwd()
 
 # dates and times
 today = dt.date.today()
 start_date = f"{(today - dt.timedelta(days=today.weekday()+7)).strftime('%m-%d-%y')} 00:00"
 end_date = f"{(today - dt.timedelta(days=today.weekday()+1)).strftime('%m-%d-%y')} 23:59"
 # api basics
-cert_path = root/'certificates'/'mccyabby.pem'
+cert_path = str(root/'certificates'/'mccyabby.pem')
 main_url = "https://admin.yabbycasino.com/YABBYECVSUGMOQMOIPQO/RTGWebAPI/"
 
 def get(call, params, description):
@@ -44,7 +43,7 @@ def get(call, params, description):
             if n == 2:
                 print(f"----> request failed: get {description}")
                 return False
-            print(f"-- get {description} attempt {n+1}...")
+            print(f"-- retry get {description} [{n+1}/2]...")
 
 def create_coupon(login, reward):
     # define payload
@@ -81,20 +80,20 @@ def redeem_coupon(pid, coupon_code):
         return 0
     elif balance[0]['balance'] >= 1: # has active balance
         print("----> player has active balance")
-        return 0
+        return 2
     
     # redeem coupon
     print(f"-- redeem {coupon_code}...")
     r = requests.post(url=main_url+f'api/v2/players/{pid}/coupons',params={'couponCode':coupon_code, 'redeem':True, 'ignorePlayerRestrictions':True},cert=cert_path)
     if r.status_code == 200:
         print("----> success!")
-        return True
+        return 1
     elif r.json()['Status'] == 'player_excluded_from_redeeming_all_coupons': # ineligible
         print("----> excluded from coupons")
-        return False
+        return 3
     elif r.json()['Status'] == 'previous_coupon_pending': # has active balance
         print("----> previous coupon pending")
-        return 0
+        return 2
     else: # if redeem coupon call fails -> soft failure
         print(f"----> failed: {r.status_code}") 
         print(f"---- {r.text}")
@@ -118,7 +117,7 @@ def send_email(status, firstname, email):
     filename = "yabby.csv" # for attachement part
 
     if status == 1: # Processed Message Content
-        print(f"-- sending 'processed reward' to {email}")
+        print(f"-- send 'processed reward' to {email}...")
         text = """\
         Dear %s,
         Hope you are well.
@@ -151,7 +150,7 @@ def send_email(status, firstname, email):
         </html>
         """ % (firstname.title(),)
     elif status == 2: # Pending Message Content
-        print(f"-- sending 'pending reward' email to {email}")
+        print(f"-- send 'pending reward' email to {email}...")
         text = """\
         Dear %s,
         Hope you are well.
@@ -206,7 +205,8 @@ def send_email(status, firstname, email):
             print("----> success!")
         except Exception as e:
             print(f"----> failed: {e}")
-
+            return False
+            
 # initiation prompt
 print("\nMonday Cashback Rewards Module started:")
 terms=["====================================================", "Terms setup:", f"Minimum Loss: ${min_loss}", f"Minimum Deposits: ${min_deposits}", f"Minimum Reward: ${min_reward}", f"Maximum WDs/DEPs Ratio: {max_ratio}%"]
@@ -262,7 +262,7 @@ for index, row in df1.iterrows(): # iterate through dataframe rows [depositors]
         print(f"[{current}/{total}] {login} ineligible: banned.")
         df1.at[index, 'eligible'] = False
         continue
-    if player_class.casefold() == 'Bonus Abuser' or player_class.casefold() == 'Bonus Hunter' or player_class.casefold() == 'New'.casefold():
+    if player_class == 'Bonus Abuser' or player_class == 'Bonus Hunter' or player_class == 'New':
         if player_class == "New": player_class = "Novice Customer" # for better reporting
         print(f"[{current}/{total}] {login} ineligible: {player_class}.")
         df1.at[index, 'eligible'] = False
@@ -271,7 +271,7 @@ for index, row in df1.iterrows(): # iterate through dataframe rows [depositors]
     # get playerID
     r = get("api/accounts/playerid",{'login':login},"player id")
     if r == False: #failed
-        print(f"[{current}/{total}] {login} HARD FAIL (Get Player ID).") # what to do with customers who failed?
+        print(f"[{current}/{total}] {login} skipped: HARD FAIL (Get Player ID) - Moving to next customer...") # what to do with customers who failed?
         df1.at[index, 'failed'] = True
         continue # next customer
     else: pid = r.rstrip() # success
@@ -279,14 +279,14 @@ for index, row in df1.iterrows(): # iterate through dataframe rows [depositors]
     # get player balance summary
     r = get(f"api/players/{pid}/balance-summary",{'startDate':start_date, 'endDate':end_date},"balance summary")
     if r == False: # failed
-        print(f"[{current}/{total}] {login} HARD FAIL (Get Balance Sumamry).") # what to do with customers who failed?
+        print(f"[{current}/{total}] {login} skipped: HARD FAIL (Get Balance Summary) - Moving to next customer...") # what to do with customers who failed?
         df1.at[index, 'failed'] = True
         continue # next customer
     else: # success
         deposits = r[0]['real_deposits_amount']
         withdrawals = r[0]['real_withdrawals_amount']
         loss = deposits - withdrawals # losses
-        ratio = withdrawals/deposits # ratio of withdrawals to deposits
+        ratio = withdrawals/deposits * 100 # ratio of withdrawals to deposits
         df1.at[index, 'deposits'] = deposits
         df1.at[index, 'withdrawals'] = withdrawals
         df1.at[index, 'loss'] = loss
@@ -300,7 +300,7 @@ for index, row in df1.iterrows(): # iterate through dataframe rows [depositors]
         print(f'[{current}/{total}] {login} ineligible - loss [${round(loss,2)}] below minimum [${min_loss}].')
         df1.at[index, 'eligible'] = False
         continue
-    if ratio * 100 > max_ratio:
+    if ratio > max_ratio:
         print(f'[{current}/{total}] {login} ineligible - withdrawals ratio [{round(ratio,2)}%] above maximum [{max_ratio}%].')
         df1.at[index, 'eligible'] = False
         continue
@@ -323,23 +323,36 @@ for index, row in df1.iterrows(): # iterate through dataframe rows [depositors]
 
     coupon_code = create_coupon(login, reward) # try creating coupon
     if coupon_code == False: # if failed, put Event Log Comment and send email
-        print(f"-- SOFT FAIL (Create Coupon).")
         df1.at[index, 'processed'] = False
         place_comment(pid, reward)
         send_email(2, row['first_name'], row['email'])
+        print(f"[{current}/{total}] {login} - failed to create a coupon so support will have to cover it. Reward amount noted on customer's event log, 'pending reward' email sent.")
     else: # if coupon was created 
         r = redeem_coupon(pid, coupon_code)
-        if r == False: # if excluded from coupons
-            df1.at[index, 'eligible'] = False
-            print(f"[{current}/{total}] {login} excluded from redeeming coupons.")
-            continue
-        elif r == 0: # if soft failure
-            print(f"-- SOFT FAIL (Redeem Coupon).")
+        if r == 0: # if soft failure
             df1.at[index, 'processed'] = False
             place_comment(pid, reward, coupon_code=coupon_code)
             send_email(2, row['first_name'], row['email'])
-        elif r: 
+            print(f"[{current}/{total}] {login} - failed to redeem coupon so support will have to cover it. Coupon created, noted on customer's event log, 'pending reward' email sent.")
+        elif r == 1: # processed
             df1.at[index, 'processed'] = True
             send_email(1, row['first_name'], row['email'])
+            print(f"[{current}/{total}] {login} - sucess (Reward Processed)!")
+        elif r == 2: # active balance
+            df1.at[index, 'processed'] = True
+            place_comment(pid, reward, coupon_code=coupon_code)
+            send_email(2, row['first_name'], row['email'])
+            print(f"[{current}/{total}] {login} - success (Active Balance)!")
+            continue
+        elif r == 3: # if excluded from coupons
+            df1.at[index, 'eligible'] = False
+            print(f"[{current}/{total}] {login} excluded from redeeming coupons.")
+            continue
 
+print("====================================================")
+print(f"Report is saved here: {root/'data.csv'}...")
 df1.to_csv(root/'data.csv')
+a = input("I'm done! Enter 'q' to exit... ")
+while a != "q":
+    a = input("Enter 'q' to exit... ")
+exit()
