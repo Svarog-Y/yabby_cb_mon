@@ -1,15 +1,3 @@
-################### TERMS ###################
-min_loss = 33
-min_deposits = 0
-max_ratio = 100
-min_reward = 1
-################## REWARDS ##################
-rookie_reward = 0.03
-pro_reward = 0.04
-star_reward = 0.05
-prestige_reward = 0.08
-hof_reward = 0.1
-
 import requests
 import pandas as pd
 import datetime as dt
@@ -24,13 +12,27 @@ from smtplib import SMTP_SSL
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+################### TERMS ###################
+min_loss = 33
+min_deposits = 0
+max_ratio = 100
+min_reward = 1
+################## REWARDS ##################
+rookie_reward = 0.03
+pro_reward = 0.04
+star_reward = 0.05
+prestige_reward = 0.08
+hof_reward = 0.1
+############# DATES TO LOOK AT ##############
+today = dt.date.today()
+start_date = f"{(today - dt.timedelta(days=today.weekday() + 7)).strftime('%m-%d-%y')} 00:00" # last monday
+end_date = f"{(today - dt.timedelta(days=today.weekday() + 1)).strftime('%m-%d-%y')} 23:59" # last sunday
+
+
 # root directory
 root = Path.cwd()
 
-# dates and times
-today = dt.date.today()
-start_date = f"{(today - dt.timedelta(days=today.weekday() + 7)).strftime('%m-%d-%y')} 00:00"
-end_date = f"{(today - dt.timedelta(days=today.weekday() + 1)).strftime('%m-%d-%y')} 23:59"
+
 # api basics
 cert_path = str(root / 'certificates' / 'mccyabby.pem')
 main_url = "https://admin.yabbycasino.com/YABBYECVSUGMOQMOIPQO/RTGWebAPI/"
@@ -135,7 +137,7 @@ def redeem_coupon(pid, coupon_code):
 def place_comment(pid, reward, coupon_code=""):
     print(f"-- add event log comment...")
     r = requests.put(url=main_url + f"api/players/{pid}/comp-points", data={
-        'comment': f'<font color="orange"><b>Monday Cashback Pending (${reward}):</b></font> <a href="couponPlayerRedeem.asp?PID={pid}&amp;couponCode={coupon_code}&amp;show=1">{coupon_code}</a>'},
+        'comment': f'<font color="orange"><b>Monday Cashback Pending (${round(reward, 2)}):</b></font> <a href="couponPlayerRedeem.asp?PID={pid}&amp;couponCode={coupon_code}&amp;show=1">{coupon_code}</a>'},
                      cert=cert_path)
     if r.status_code == 200:
         print("----> success!")
@@ -253,10 +255,10 @@ for item in terms:
     print(item)
 
 # for testing purposes
-if input("Skip processing rewards (for testing purposes)? [Y/N]: ") == 'N'.casefold():  # process rewards
+if input("Skip processing rewards (for testing purposes)? [Y/N]: ").casefold() == 'N'.casefold():  # process rewards
     testing = False
     print("NOT A DRILL - REWARDS WILL BE PROCESSED!")
-    if input("Proceed? [Y/N]: ") == 'N'.casefold():  # double check
+    if input("Proceed? [Y/N]: ").casefold() == 'N'.casefold():  # double check
         testing = True
         print("Testing mode ON - rewards WILL NOT be processed.")
 else:  # testing mode
