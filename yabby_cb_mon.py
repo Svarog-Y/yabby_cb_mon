@@ -62,7 +62,7 @@ def create_coupon(login, reward):
     end_today = (dt.date.today() + dt.timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     # necessary coupon details
-    coupon_code = "CB-MON-" + "".join([choice(ascii_letters + digits) for n in range(7)]).upper()
+    coupon_code = "CB-WEEK-" + "".join([choice(ascii_letters + digits) for j in range(7)]).upper()
     comment = f"Monday Cashback reward for {login} | 10x WAG | 10x MCO | All NP Games Allowed"  # coupon comment
 
     payload = {"redeem_amount": reward, "play_through_amount": reward * 10, "can_be_referred": True,
@@ -96,7 +96,7 @@ def create_coupon(login, reward):
             return coupon_code  # if successful, end function
         elif r.json()['Status'] == "coupon_code_already_exists":  # if coupon code exists
             print(f"----> {coupon_code} already exists. generating new coupon code...")
-            coupon_code = "CB-MON-" + "".join(
+            coupon_code = "CB-WEEK-" + "".join(
                 [choice(ascii_letters + digits) for n in range(7)]).upper()  # randomize new code
             payload["coupon_code"] = coupon_code  # input new coupon code
             continue  # repeat
@@ -349,7 +349,7 @@ for index, row in df1.iterrows():  # iterate through dataframe rows [depositors]
         pid = r.rstrip()  # success
 
     # check if cashback was claimed already
-    if cb_claimed_already("CB-MON-"):
+    if cb_claimed_already("CB-WEEK-"):
         print(f"[{current}/{total}] {login} ineligible: claimed Weekly Cashback already.")
         df1.at[index, 'eligible'] = False
         continue
