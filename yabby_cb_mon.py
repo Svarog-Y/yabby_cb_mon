@@ -1,6 +1,7 @@
 import requests
 import pandas as pd
 import datetime as dt
+import backend as b
 from sys import exit
 from pathlib import Path
 from random import choice
@@ -318,7 +319,12 @@ for index, row in df1.iterrows():  # iterate through dataframe rows [depositors]
         df1.at[index, 'eligible'] = False
         continue
 
-        # get playerID
+    if b.pending_withdrawal(main_url, cert_path, login):
+        print(f"[{current}/{total}] {login} ineligible: has pending withdrawal.")
+        df1.at[index, 'eligible'] = False
+        continue
+
+    # get playerID
     r = get("api/accounts/playerid", {'login': login}, "player id")
     if r == False:  # failed
         print(
