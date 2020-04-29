@@ -36,7 +36,7 @@ root = Path.cwd()
 
 # api basics
 cert_path = str(root / 'certificates' / 'mccyabby.pem')
-main_url = "https://admin.yabbycasino.com/YABBYECVSUGMOQMOIPQO/RTGWebAPI/"
+main_url = "https://admin.yabbycasino.com/YABBYECVSUGMOQMOIPQO/RTGWebAPI/api/"
 
 
 def get(call, params, description):
@@ -108,7 +108,7 @@ def create_coupon(login, reward):
 
 def redeem_coupon(pid, coupon_code):
     # check active balance first
-    balance = get(f"api/players/{pid}/balance", {'forMoney': 'True'}, "active balance")  # check active balance
+    balance = get(f"players/{pid}/balance", {'forMoney': 'True'}, "active balance")  # check active balance
     if balance == False:  # if balance call fails -> soft failure
         return 0
     elif balance[0]['balance'] >= 1:  # has active balance
@@ -247,6 +247,19 @@ def send_email(status, firstname, email):
             return False
 
 
+def cb_claimed_already(keyword):
+    this_week_monday = today - dt.timedelta(days=today.weekday())
+    monday_start = f"{this_week_monday.strftime('%m-%d-%y')} 00:00"
+    monday_end = f"{this_week_monday.strftime('%m-%d-%y')} 23:59"
+
+    claimed_coupons = b.get_redeemed_coupons_list(main_url, cert_path, pid, monday_start, monday_end)
+    for bonus in claimed_coupons:
+        if bonus["coupon_code"][:len(keyword)].casefold() == keyword.casefold():
+            return True
+
+    return False
+
+
 # initiation prompt
 print("\nMonday Cashback Rewards Module started:")
 terms = ["====================================================", "Terms setup:", f"Minimum Loss: ${min_loss}",
@@ -270,7 +283,7 @@ print("====================================================")
 # get depositors for last week
 print(f"-- get depositors report [{start_date} to {end_date}]...")
 for n in range(5):  # attempt 5 times
-    r = requests.get(url=main_url + "api/reports/depositors", params={'startDate': start_date, 'endDate': end_date},
+    r = requests.get(url=main_url + "reports/depositors", params={'startDate': start_date, 'endDate': end_date},
                      cert=cert_path)
     if r.status_code == 200:
         total = len(r.json())  # get depositor count
@@ -319,13 +332,14 @@ for index, row in df1.iterrows():  # iterate through dataframe rows [depositors]
         df1.at[index, 'eligible'] = False
         continue
 
+    # check pending withdrawals
     if b.pending_withdrawal(main_url, cert_path, login):
         print(f"[{current}/{total}] {login} ineligible: has pending withdrawal.")
         df1.at[index, 'eligible'] = False
         continue
 
     # get playerID
-    r = get("api/accounts/playerid", {'login': login}, "player id")
+    r = get("accounts/playerid", {'login': login}, "player id")
     if r == False:  # failed
         print(
             f"[{current}/{total}] {login} skipped: HARD FAIL (Get Player ID) - Moving to next customer...")  # what to do with customers who failed?
@@ -334,8 +348,14 @@ for index, row in df1.iterrows():  # iterate through dataframe rows [depositors]
     else:
         pid = r.rstrip()  # success
 
+    # check if cashback was claimed already
+    if cb_claimed_already("CB-MON-"):
+        print(f"[{current}/{total}] {login} ineligible: claimed Weekly Cashback already.")
+        df1.at[index, 'eligible'] = False
+        continue
+
     # get player balance summary
-    r = get(f"api/players/{pid}/balance-summary", {'startDate': start_date, 'endDate': end_date}, "balance summary")
+    r = get(f"players/{pid}/balance-summary", {'startDate': start_date, 'endDate': end_date}, "balance summary")
     if r == False:  # failed
         print(
             f"[{current}/{total}] {login} skipped: HARD FAIL (Get Balance Summary) - Moving to next customer...")  # what to do with customers who failed?

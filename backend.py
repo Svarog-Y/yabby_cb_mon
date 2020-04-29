@@ -163,6 +163,32 @@ def get_bank_methods(backend, certificate):
             return None
 
 
+def get_redeemed_coupons_list(backend, certificate, player_id, start_date, end_date):
+    parameters = {"startDate": start_date,
+                  "endDate": end_date,
+                  "playerId": player_id,
+                  "couponStatus": "redemption"
+                  }
+
+    while True:
+        try:
+            r = requests.get(url=backend + "v2/players/coupons", params=parameters, cert=certificate)
+        except requests.ConnectionError:
+            print("\nInternet connection problem detected! Please check your internet and try again.                  ")
+            if restart():
+                raise Exception(f"[technical] Failed getting Coupon Code list. Please retry later.")  # restart
+            else:
+                continue
+
+        if r.status_code == 200:
+            return r.json()
+
+        print(f"[technical] Get Coupon Code list failed ({r.status_code}).                                           "
+              f"{r.text}\n")
+        if restart():
+            raise Exception(f"[technical] Failed getting Coupon Code list. Manual Cashback Needed.")  # restart
+
+
 def get_coupon_category(backend, certificate, coupon_code, start_date, end_date):
     parameters = {"startDate": start_date,
                   "endDate": end_date,
